@@ -1,0 +1,368 @@
+<html><head><base href="https://toucan.ia/visualizer" /><title>Toucan.ia Advanced Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  body {
+    font-family: 'Playfair Display', serif;
+    background-color: #f5e6d3;
+    color: #5a4a3f;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  h1 {
+    font-size: 2.5em;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  #controls {
+    background-color: #e6d8c6;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  button, select, input[type="file"] {
+    font-family: 'Playfair Display', serif;
+    background-color: #d1b89b;
+    border: none;
+    color: #5a4a3f;
+    padding: 10px 20px;
+    margin: 10px;
+    border-radius: 5px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  button:hover, select:hover {
+    background-color: #c1a88b;
+  }
+  #fullscreenContainer {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 200px);
+    overflow: hidden;
+  }
+  #fullscreenButton {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background-color: rgba(209, 184, 155, 0.7);
+    padding: 5px 10px;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+  <h1>Toucan.ia Advanced Colorblind Friendly Visualizer</h1>
+  <div id="controls">
+    <input type="file" id="audioInput" accept="audio/*">
+    <select id="colorMode">
+      <option value="protan">Protan</option>
+      <option value="tritan">Tritan</option>
+      <option value="deutan">Deutan</option>
+      <option value="mira" selected>Mira Palette</option>
+    </select>
+    <select id="visualizerMode">
+      <option value="psychedelicSpiral">Psychedelic Spiral</option>
+      <option value="chaosVortex">Chaos Vortex</option>
+      <option value="fracturedDimension">Fractured Dimension</option>
+    </select>
+    <select id="zoomLevel">
+      <option value="0.5">Zoom Out 100%</option>
+      <option value="0.75">Zoom Out 75%</option>
+      <option value="0.9">Zoom Out 50%</option>
+      <option value="1" selected>Normal Zoom</option>
+      <option value="1.25">Zoom In 25%</option>
+      <option value="1.5">Zoom In 50%</option>
+      <option value="1.75">Zoom In 75%</option>
+      <option value="2">Zoom In 100%</option>
+    </select>
+    <button id="playPause">Play/Pause</button>
+  </div>
+  <div id="fullscreenContainer">
+    <button id="fullscreenButton">Fullscreen</button>
+  </div>
+
+  <script>
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    let audioSource;
+    let audioBuffer;
+    let isPlaying = false;
+
+    const colorModes = {
+      protan: ['#FFB300', '#0072B2', '#009E73', '#CC79A7', '#F0E442', '#D55E00', '#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2', '#D55E00'],
+      tritan: ['#FFFF00', '#00FF00', '#ADFF2F', '#7FFF00', '#32CD32', '#98FB98', '#90EE90', '#00FA9A', '#7CFC00', '#9ACD32', '#6B8E23', '#556B2F'],
+      deutan: ['#FF0000', '#0000FF', '#FF4500', '#1E90FF', '#DC143C', '#4169E1', '#B22222', '#6495ED', '#8B0000', '#4682B4', '#CD5C5C', '#0000CD'],
+      mira: ['#3c0419', '#94fc9c', '#160446', '#6b0463', '#8FF000', '#4cc0a0', '#FF4700', '#7BA05B', '#644468', '#CCCCFF', '#FFEFD5', '#003153']
+    };
+
+    // Three.js setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const container = document.getElementById('fullscreenContainer');
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    camera.position.z = 5;
+
+    let visualizer;
+    let time = 0;
+
+    function loadAudio(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        audioContext.decodeAudioData(e.target.result, function(buffer) {
+          audioBuffer = buffer;
+          document.getElementById('playPause').disabled = false;
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function createPsychedelicSpiral() {
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.PointsMaterial({ size: 0.05, vertexColors: true });
+
+      const positions = [];
+      const colors = [];
+      const colorMode = document.getElementById('colorMode').value;
+      const colorPalette = colorModes[colorMode];
+
+      for (let i = 0; i < 10000; i++) {
+        const t = i / 100;
+        const x = Math.sin(t) * (1 + t / 10) * Math.cos(t * 0.1);
+        const y = Math.cos(t) * (1 + t / 10) * Math.sin(t * 0.1);
+        const z = t / 5 * Math.sin(t * 0.05);
+
+        positions.push(x, y, z);
+
+        const color = new THREE.Color(colorPalette[i % colorPalette.length]);
+        colors.push(color.r, color.g, color.b);
+      }
+
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+      return new THREE.Points(geometry, material);
+    }
+
+    function createChaosVortex() {
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.LineBasicMaterial({ vertexColors: true });
+
+      const positions = [];
+      const colors = [];
+      const colorMode = document.getElementById('colorMode').value;
+      const colorPalette = colorModes[colorMode];
+
+      for (let i = 0; i < 1000; i++) {
+        const t = i * 0.1;
+        const x = Math.sin(t) * (2 + Math.cos(t * 3));
+        const y = Math.cos(t) * (2 + Math.sin(t * 2));
+        const z = Math.sin(t * 4) + Math.cos(t * 5);
+
+        positions.push(x, y, z);
+
+        const color = new THREE.Color(colorPalette[i % colorPalette.length]);
+        colors.push(color.r, color.g, color.b);
+      }
+
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+      return new THREE.Line(geometry, material);
+    }
+
+    function createFracturedDimension() {
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.PointsMaterial({ size: 0.05, vertexColors: true });
+
+      const positions = [];
+      const colors = [];
+      const colorMode = document.getElementById('colorMode').value;
+      const colorPalette = colorModes[colorMode];
+
+      for (let i = 0; i < 5000; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = Math.pow(Math.random(), 1/3);
+
+        const x = r * Math.sin(phi) * Math.cos(theta);
+        const y = r * Math.sin(phi) * Math.sin(theta);
+        const z = r * Math.cos(phi);
+
+        positions.push(x, y, z);
+
+        const color = new THREE.Color(colorPalette[i % colorPalette.length]);
+        colors.push(color.r, color.g, color.b);
+      }
+
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+      return new THREE.Points(geometry, material);
+    }
+
+    function updateVisualizer() {
+      scene.remove(visualizer);
+      const mode = document.getElementById('visualizerMode').value;
+      switch (mode) {
+        case 'psychedelicSpiral':
+          visualizer = createPsychedelicSpiral();
+          break;
+        case 'chaosVortex':
+          visualizer = createChaosVortex();
+          break;
+        case 'fracturedDimension':
+          visualizer = createFracturedDimension();
+          break;
+      }
+      scene.add(visualizer);
+    }
+
+    function updateZoom() {
+      const zoomLevel = parseFloat(document.getElementById('zoomLevel').value);
+      camera.position.z = 5 / zoomLevel;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      time += 0.01;
+
+      if (isPlaying) {
+        analyser.getByteFrequencyData(dataArray);
+        const averageFrequency = dataArray.reduce((a, b) => a + b) / bufferLength;
+        const loudness = averageFrequency / 255;
+
+        if (visualizer) {
+          const baseRotationSpeed = 0.005;
+          const maxRotationSpeed = 0.02;
+          const rotationSpeed = baseRotationSpeed + (maxRotationSpeed - baseRotationSpeed) * loudness;
+
+          visualizer.rotation.x += rotationSpeed;
+          visualizer.rotation.y += rotationSpeed * 1.5;
+          visualizer.rotation.z += rotationSpeed * 0.5;
+
+          const baseScale = 1;
+          const maxScale = 1.2;
+          const scale = baseScale + (maxScale - baseScale) * loudness;
+          visualizer.scale.set(scale, scale, scale);
+
+          const colors = visualizer.geometry.attributes.color;
+          const colorMode = document.getElementById('colorMode').value;
+          const colorPalette = colorModes[colorMode];
+          for (let i = 0; i < colors.count; i++) {
+            const colorIndex = (i + Math.floor(time * 10)) % colorPalette.length;
+            const color = new THREE.Color(colorPalette[colorIndex]);
+            colors.setXYZ(i, color.r, color.g, color.b);
+          }
+          colors.needsUpdate = true;
+
+          const positions = visualizer.geometry.attributes.position;
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const y = positions.getY(i);
+            const z = positions.getZ(i);
+            const distortionAmount = 0.01 * loudness;
+            positions.setXYZ(
+              i,
+              x + Math.sin(time + y) * distortionAmount,
+              y + Math.cos(time + z) * distortionAmount,
+              z + Math.sin(time + x) * distortionAmount
+            );
+          }
+          positions.needsUpdate = true;
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    document.getElementById('audioInput').addEventListener('change', function(e) {
+      loadAudio(e.target.files[0]);
+    });
+
+    document.getElementById('playPause').addEventListener('click', function() {
+      if (audioBuffer) {
+        if (isPlaying) {
+          audioSource.stop();
+          isPlaying = false;
+          this.textContent = 'Play';
+        } else {
+          audioSource = audioContext.createBufferSource();
+          audioSource.buffer = audioBuffer;
+          audioSource.connect(analyser);
+          analyser.connect(audioContext.destination);
+          audioSource.start(0);
+          isPlaying = true;
+          this.textContent = 'Pause';
+        }
+      }
+    });
+
+    document.getElementById('colorMode').addEventListener('change', updateVisualizer);
+    document.getElementById('visualizerMode').addEventListener('change', updateVisualizer);
+    document.getElementById('zoomLevel').addEventListener('change', updateZoom);
+
+    document.getElementById('playPause').disabled = true;
+
+    const fullscreenButton = document.getElementById('fullscreenButton');
+
+    fullscreenButton.addEventListener('click', function() {
+      if (!document.fullscreenElement) {
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.mozRequestFullScreen) {
+          container.mozRequestFullScreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+          container.msRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+      }
+    });
+
+    function onWindowResize() {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    window.addEventListener('resize', onWindowResize, false);
+
+    updateVisualizer();
+    updateZoom();
+  </script>
+</body></html>
