@@ -78,7 +78,7 @@ def adjust_moon_color(moon_color, year):
 
 def generate_astrological_colors(birthday):
     base_sun_color = "#5A3442"
-    base_date = "04/14/2015"
+    base_date = "06/02/2015"
     
     days_diff = calculate_days_difference(base_date, birthday)
     birth_month = int(birthday.split('/')[0])
