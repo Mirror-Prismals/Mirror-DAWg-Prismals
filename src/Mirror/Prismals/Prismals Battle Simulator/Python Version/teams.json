@@ -1,0 +1,10 @@
+{
+    "team1": {
+        "Fire Dragon": ["Flame Blast", "Fire Spin"],
+        "Fire Phoenix": ["Flame Blast", "Fire Spin"]
+    },
+    "team2": {
+        "Water Serpent": ["Water Gun", "Hydro Pump"],
+        "Water Nymph": ["Water Gun", "Hydro Pump"]
+    }
+}
