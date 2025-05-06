@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Node-based DAW – Multiple Outputs Fix</title>
+  <style>
+    :root {
+      /* Oxblood background */
+      --bg-center: #400000;
+      --bg-edge: #100000;
+
+      /* Panel colors */
+      --sample-color: #803030;
+      --timeline-color: #602020;
+      --fxchain-color: #701010;
+
+      /* For the timeline's bevel animation */
+      --bevel-dark-rgb: 0, 0, 0;
+      --bevel-light-rgb: 255, 255, 255;
+
+      /* Darker version of timeline color for the outer grid lines */
+      --timeline-dark: 67, 22, 22;
+      --inner-grid-opacity: 0.5;
+
+      /* Ruby-ish reds for UI, wires, node circles */
+      --ruby-bg: #701010;
+      --ruby-border: #500000;
+      --ruby-hover: #803030;
+      --ruby-text:  #f0f0f0;
+      --ruby-muted: #c0c0c0;
+      --ruby-disabled: #99;
+
+      --wire-red: #ff4444;
+      --circle-red: #ff6666;
+      --circle-red-border: #cc3333;
+
+      /* New variables for lane node and load node floppy disk */
+      --lane-bg: rgba(112,16,16,0.5);
+      --lane-add-bg: rgba(80,16,16,0.5);
+      --lane-add-button: #ff6666;
+      --floppy-fill: #ff6666;
+      --floppy-stroke: #500000;
+    }
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+    body {
+      background: radial-gradient(circle at center, var(--bg-center), var(--bg-edge));
+      /* Apply gemstone glimmer animation */
+      animation: gemstoneGlimmer 5s infinite ease-in-out;
+      display: grid;
+      width: 100vw; height: 100vh;
+      grid-template-columns: 20% 80%;
+      grid-template-rows: 70% 30%;
+      grid-template-areas:
+        "sample timeline"
+        "sample fxchain";
+      overflow: hidden;
+      font-family: sans-serif;
+      user-select: none;
+      color: var(--ruby-text);
+    }
+    /* Gemstone glimmer keyframes */
+    @keyframes gemstoneGlimmer {
+      0%   { filter: brightness(1) contrast(1); }
+      50%  { filter: brightness(1.2) contrast(1.3); }
+      100% { filter: brightness(1) contrast(1); }
+    }
+    /* Sparkle effect overlay */
+    #sparkles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10000;
+    }
+    .sparkle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 70%);
+      border-radius: 50%;
+      animation: sparkleAnim 1s ease-out forwards;
+    }
+    @keyframes sparkleAnim {
+      0%   { opacity: 1; transform: scale(0.5); }
+      50%  { opacity: 1; transform: scale(1.5); }
+      100% { opacity: 0; transform: scale(0.5); }
+    }
+
+    /* SAMPLE MANAGER (left) */
+    .sample-container {
+      grid-area: sample; position: relative; background: #222;
+    }
+    .sample-manager {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--sample-color);
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.8) inset;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; color: white;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+    }
+    .sample-manager::before {
+      content: "SAMPLE MANAGER";
+    }
+    .sample-manager.hidden {
+      transform: translateX(calc(-100% + 20px));
+      opacity: 0.4;
+    }
+    .sample-tab {
+      position: absolute; top: 0; left: 0;
+      width: 20px; height: 40px;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 0 0 8px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.7);
+      cursor: pointer;
+      color: var(--ruby-text);
+      font-size: 0.8rem;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+    }
+    .sample-tab:hover {
+      background: var(--ruby-hover);
+    }
+    .sample-tab::before {
+      content: "←";
+    }
+    .sample-manager.hidden + .sample-tab::before {
+      content: "→";
+    }
+
+    /* TIMELINE (top-right) */
+    .timeline {
+      grid-area: timeline; position: relative;
+      background: var(--timeline-color);
+      border-radius: 8px;
+      margin-left: 10px; margin-bottom: 10px;
+      box-shadow:
+        inset 4px 4px 8px rgba(0,0,0,1),
+        inset -4px -4px 8px rgba(255,255,255,0.5),
+        0 4px 6px rgba(0,0,0,0.7);
+      transition: margin 0.5s ease, box-shadow 0.5s ease;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; color: white;
+      cursor: grab;
+      background-image:
+        linear-gradient(90deg, rgba(67,22,22,0.7) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(67,22,22,0.7) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(67,22,22,0.5) 0.5px, transparent 0.5px),
+        linear-gradient(0deg, rgba(67,22,22,0.5) 0.5px, transparent 0.5px);
+      background-position: 0 0;
+    }
+    .timeline::before {
+      content: "TIMELINE";
+    }
+
+    /* Pan/zoom container */
+    #panZoomContainer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 4000px;  /* Large "world" area for nodes */
+      height: 4000px;
+      transform-origin: 0 0;
+    }
+
+    /* Node layer & wires */
+    #connectionCanvas {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 500;
+    }
+    .node-layer {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: auto;
+    }
+    .connection-path {
+      stroke-width: 3;
+      stroke-linecap: round;
+      fill: none;
+    }
+
+    /* FX CHAIN (bottom-right) */
+    .fxchain-container {
+      grid-area: fxchain; position: relative; background: #222;
+    }
+    .fx-chain {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--fxchain-color);
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.8) inset;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; color: white;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+    }
+    .fx-chain::before {
+      content: "FX CHAIN";
+    }
+    .fx-chain.hidden {
+      transform: translateY(100%);
+      opacity: 0.4;
+    }
+    .fx-tab {
+      position: absolute; top: 0; left: 50%;
+      transform: translate(-50%, -40px);
+      width: 80px; height: 20px;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 8px 8px 0 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.7);
+      cursor: pointer;
+      color: var(--ruby-text);
+      font-size: 0.8rem;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+    }
+    .fx-tab:hover {
+      background: var(--ruby-hover);
+    }
+    .fx-tab::before {
+      content: "↓";
+    }
+    .fx-chain.hidden + .fx-tab::before {
+      content: "↑";
+    }
+
+    /* TRANSPORT NODE (excluded from pan/zoom) */
+    .transport-node {
+      position: absolute;
+      top: 40px; left: 10px;
+      display: flex; align-items: center;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 6px;
+      padding: 4px 6px;
+      color: var(--ruby-text);
+      font-size: 0.9rem;
+      min-height: 30px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      z-index: 999;
+      user-select: none;
+    }
+    .transport-handle {
+      cursor: grab;
+      margin-right: 8px;
+      color: var(--ruby-muted);
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 4px;
+    }
+    .transport-handle:hover {
+      color: #fff;
+    }
+    .queue-button {
+      position: relative;
+      display: flex; align-items: center;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      padding: 0 8px;
+      margin-right: 8px;
+      cursor: pointer;
+    }
+    .queue-button:hover {
+      background: var(--ruby-hover);
+    }
+    .queue-icon {
+      margin-right: 4px;
+      color: #fff;
+      font-weight: bold;
+    }
+    .queue-label {
+      color: var(--ruby-text);
+      margin-right: 4px;
+    }
+    .caret {
+      color: var(--ruby-muted);
+      font-size: 0.7rem;
+    }
+    .queue-dropdown {
+      position: absolute; top: 100%; left: 0;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      list-style: none;
+      padding: 4px 0;
+      margin: 4px 0 0 0;
+      min-width: 120px;
+      display: none;
+      z-index: 999;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.7);
+    }
+    .queue-dropdown li {
+      padding: 4px 8px;
+      cursor: pointer;
+      color: var(--ruby-text);
+    }
+    .queue-dropdown li:hover {
+      background: var(--ruby-hover);
+    }
+    .batch-size {
+      display: flex; align-items: center;
+      margin-right: 8px;
+    }
+    .batch-size input[type="number"] {
+      width: 50px;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      color: var(--ruby-text);
+      text-align: center;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    .batch-size input[type="number"]::-webkit-inner-spin-button,
+    .batch-size input[type="number"]::-webkit-outer-spin-button {
+      margin: 0; -webkit-appearance: none;
+    }
+    .stop-btn,
+    .stop-all-btn {
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      color: var(--ruby-text);
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      margin-right: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .stop-all-btn {
+      margin-right: 0;
+    }
+    .stop-btn:hover,
+    .stop-all-btn:hover {
+      background: var(--ruby-hover);
+    }
+    /* Color toggle button */
+    .color-toggle-btn {
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      color: var(--ruby-text);
+      padding: 4px 8px;
+      margin-left: 8px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .color-toggle-btn:hover {
+      background: var(--ruby-hover);
+    }
+
+    /* TIMELINE CONTEXT MENU */
+    .timeline-menu {
+      position: absolute; display: none;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      list-style: none;
+      padding: 4px 0;
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--ruby-text);
+      z-index: 9999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+      min-width: 180px;
+    }
+    .timeline-menu li {
+      padding: 6px 12px;
+      cursor: pointer;
+      display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    .timeline-menu li:hover {
+      background: var(--ruby-hover);
+    }
+    .timeline-menu hr {
+      border: none; border-top: 1px solid var(--ruby-border);
+      margin: 4px 0;
+    }
+    .timeline-menu li.disabled {
+      color: var(--ruby-disabled);
+      cursor: default;
+    }
+    .timeline-menu li.disabled:hover {
+      background: none;
+    }
+    .submenu-arrow {
+      margin-left: 8px;
+      color: var(--ruby-muted);
+    }
+    .submenu-list {
+      position: absolute; top: 0; left: 100%;
+      margin-left: -1px; display: none;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+      list-style: none;
+      min-width: 150px;
+      padding: 4px 0;
+    }
+    .submenu-list li {
+      padding: 6px 12px; cursor: pointer; color: var(--ruby-text);
+    }
+    .submenu-list li:hover {
+      background: var(--ruby-hover);
+    }
+    .submenu:hover .submenu-list {
+      display: block;
+    }
+
+    /* "Add Node" Expandable Window */
+    .add-node-panel {
+      position: absolute; top: 0; left: 0;
+      display: none; width: 240px;
+      background: var(--ruby-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.7);
+      z-index: 10000;
+      font-size: 0.9rem;
+      color: var(--ruby-text);
+    }
+    .add-node-header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--ruby-hover);
+      padding: 6px 8px;
+      border-radius: 6px 6px 0 0;
+      cursor: grab;
+    }
+    .add-node-title {
+      font-weight: bold;
+    }
+    .add-node-buttons { display: flex; gap: 8px; }
+    .add-node-btn {
+      background: transparent; border: none; color: var(--ruby-text);
+      cursor: pointer; font-size: 1rem; padding: 0;
+    }
+    .add-node-btn:hover {
+      color: #fff;
+    }
+    .add-node-content {
+      padding: 8px; display: block;
+    }
+    .node-type-item {
+      padding: 4px 0; cursor: pointer;
+    }
+    .node-type-item:hover {
+      background: var(--ruby-hover);
+    }
+
+    /* Common style for IO circles */
+    .io-circle {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      box-shadow: 0 0 2px rgba(0,0,0,0.6);
+      background: var(--circle-red);
+      border: 1px solid var(--circle-red-border);
+      cursor: crosshair;
+    }
+
+    /* PRIMITIVE NODE */
+    .primitive-node,
+    .note-node {
+      position: absolute;
+      background: #00000030;
+      border: 1px solid var(--ruby-border);
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      font-size: 0.9rem; color: var(--ruby-text);
+      pointer-events: auto; user-select: none;
+    }
+    .primitive-header,
+    .note-header {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--ruby-border);
+      background: var(--ruby-bg);
+      font-weight: bold;
+      border-radius: 6px 6px 0 0;
+      cursor: grab;
+    }
+    .primitive-node { width: 140px; }
+    .primitive-body { padding: 6px; }
+    .primitive-output {
+      position: absolute; top: 50%; right: 0; transform: translate(50%, -50%);
+    }
+    .note-node { width: 160px; height: 120px; }
+    .note-header::after { content: "Note"; }
+    .note-content { width: 100%; height: calc(100% - 24px); padding: 6px; overflow: auto; }
+    .note-content[contenteditable="true"] { outline: none; }
+    /* Add input and output circles to the note node */
+    .note-node .io-circle {
+      position: absolute;
+    }
+    .note-node .io-circle.input {
+      left: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .note-node .io-circle.output {
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* LOAD NODE (formerly LoadAudio Node, now renamed "Load") */
+    .load-node {
+      position: absolute;
+      width: 180px;
+      background: #00000030;
+      border: 1px solid var(--ruby-border);
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      font-size: 0.9rem;
+      color: var(--ruby-text);
+      pointer-events: auto;
+      user-select: none;
+      padding-bottom: 4px; /* space for plus button */
+    }
+    .load-header {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--ruby-border);
+      background: var(--ruby-bg);
+      font-weight: bold;
+      border-radius: 6px 6px 0 0;
+      cursor: grab;
+    }
+    .load-header::after {
+      content: "Load";
+    }
+    .load-content {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 4px;
+    }
+    .load-slot {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .load-info {
+      font-size: 0.8rem;
+      color: var(--ruby-muted);
+    }
+    .load-buttons button {
+      cursor: pointer;
+    }
+    .load-add-btn {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--floppy-fill);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-size: 12px;
+      margin: 4px auto 0 auto;
+    }
+    .load-add-btn:hover {
+      background: var(--ruby-hover);
+    }
+    .load-outputs {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-right: 4px;
+    }
+    /* Floppy disk icon styling */
+    .floppy-icon {
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .floppy-icon svg {
+      display: block;
+    }
+
+    /* LANE NODE (multiple row inputs + row outputs) */
+    .lane-node {
+      position: absolute;
+      background: var(--lane-bg);
+      border: 1px solid var(--ruby-border);
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      font-size: 0.9rem; color: var(--ruby-text);
+      pointer-events: auto; user-select: none;
+      width: 300px;
+    }
+    .lane-header {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--ruby-border);
+      background: var(--ruby-bg);
+      font-weight: bold;
+      border-radius: 6px 6px 0 0;
+      cursor: grab;
+    }
+    .lane-rows-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 4px;
+    }
+    .lane-row {
+      display: flex;
+      align-items: center;
+      position: relative;
+      border: 1px solid var(--ruby-border);
+      border-radius: 4px;
+      background: var(--lane-bg);
+      height: 60px;
+      padding: 4px;
+    }
+    .lane-input {
+      margin-right: 8px;
+    }
+    .lane-waveform-canvas {
+      flex: 1;
+      height: 100%;
+      background: var(--lane-bg);
+      display: block;
+      border-radius: 4px;
+    }
+    .lane-noinput {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.8rem;
+      color: var(--ruby-muted);
+      pointer-events: none;
+    }
+    .lane-output {
+      margin-left: 8px;
+    }
+    .lane-add-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 30px;
+      border-top: 1px solid var(--ruby-border);
+      background: var(--lane-add-bg);
+      border-radius: 0 0 6px 6px;
+    }
+    .lane-add-button {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--lane-add-button);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-size: 12px;
+      user-select: none;
+    }
+    .lane-add-button:hover {
+      background: var(--ruby-hover);
+    }
+  </style>
+</head>
+<body>
+  <!-- SAMPLE MANAGER -->
+  <div class="sample-container">
+    <div class="sample-manager" id="sampleManager"></div>
+    <div class="sample-tab" id="sampleTab"></div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="timeline" id="timeline">
+    <!-- Pan/zoom container: big area for nodes & wires -->
+    <div id="panZoomContainer">
+      <svg id="connectionCanvas"></svg>
+      <div class="node-layer" id="nodeLayer"></div>
+    </div>
+
+    <!-- Transport Node (excluded from zoom) -->
+    <div class="transport-node" id="transportNode">
+      <div class="transport-handle" id="transportHandle">&#8942;</div>
+      <div class="queue-button" id="queueButton">
+        <span class="queue-icon" id="queueIcon">></span>
+        <span class="queue-label" id="queueLabel">Queue</span>
+        <span class="caret" id="queueCaret">▾</span>
+        <ul class="queue-dropdown" id="queueDropdown">
+          <li data-icon=">" data-label="Queue">Queue</li>
+          <li data-icon=">>" data-label="Queue (Instant)">Queue (Instant)</li>
+          <li data-icon="|>" data-label="Queue (On Change)">Queue (On Change)</li>
+        </ul>
+      </div>
+      <div class="batch-size">
+        <input type="number" value="1" min="1" id="batchInput" />
+      </div>
+      <button class="stop-btn" id="stopBtn">X</button>
+      <button class="stop-all-btn" id="stopAllBtn">■</button>
+      <!-- NEW: Color Toggle Button -->
+      <button class="color-toggle-btn" id="colorToggle">Toggle Color</button>
+    </div>
+  </div>
+
+  <!-- FX CHAIN -->
+  <div class="fxchain-container">
+    <div class="fx-chain" id="fxChain"></div>
+    <div class="fx-tab" id="fxTab"></div>
+  </div>
+
+  <!-- TIMELINE CONTEXT MENU -->
+  <ul class="timeline-menu" id="timelineMenu">
+    <li class="submenu">
+      Add Node
+      <span class="submenu-arrow">></span>
+      <ul class="submenu-list" id="addNodeSubmenu">
+        <li data-nodetype="primitive">Primitive</li>
+        <li data-nodetype="note">Note</li>
+        <li data-nodetype="load">Load</li>
+        <li data-nodetype="lane">Lane</li>
+      </ul>
+    </li>
+    <li id="menuAddGroup">Add Group</li>
+    <hr />
+    <li class="disabled" id="menuConvertGroup">Convert to Group Node</li>
+    <li class="disabled" id="menuManageGroups">Manage Group Nodes</li>
+    <li class="disabled" id="menuAddGroupSelected">Add Group For Selected Nodes</li>
+    <hr />
+    <li id="menuSaveTemplate">Save Selected as Template</li>
+    <li class="submenu" id="menuNodeTemplates">
+      Node Templates
+      <span class="submenu-arrow">></span>
+      <ul class="submenu-list">
+        <li>Template 1</li>
+        <li>Template 2</li>
+      </ul>
+    </li>
+  </ul>
+
+  <!-- "Add Node" Expandable Window -->
+  <div class="add-node-panel" id="addNodePanel">
+    <div class="add-node-header" id="addNodeHeader">
+      <span class="add-node-title">Add Node</span>
+      <div class="add-node-buttons">
+        <button class="add-node-btn" id="addNodeToggle">▼</button>
+        <button class="add-node-btn" id="addNodeClose">✕</button>
+      </div>
+    </div>
+    <div class="add-node-content" id="add-nodeContent">
+      <div class="node-type-item">Node Type A</div>
+      <div class="node-type-item">Node Type B</div>
+      <div class="node-type-item">Node Type C</div>
+    </div>
+  </div>
+
+  <!-- Sparkle overlay -->
+  <div id="sparkles"></div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Basic references
+    const sampleManager = document.getElementById('sampleManager');
+    const sampleTab = document.getElementById('sampleTab');
+    const fxChain = document.getElementById('fxChain');
+    const fxTab = document.getElementById('fxTab');
+    const timeline = document.getElementById('timeline');
+    const panZoomContainer = document.getElementById('panZoomContainer');
+    const nodeLayer = document.getElementById('nodeLayer');
+    const connectionCanvas = document.getElementById('connectionCanvas');
+    const timelineMenu = document.getElementById('timelineMenu');
+    const addNodeSubmenu = document.getElementById('addNodeSubmenu');
+    const addNodePanel = document.getElementById('addNodePanel');
+    const addNodeHeader = document.getElementById('addNodeHeader');
+    const addNodeContent = document.getElementById('add-nodeContent');
+    const addNodeToggle = document.getElementById('addNodeToggle');
+    const addNodeClose = document.getElementById('addNodeClose');
+
+    // New color toggle reference
+    const colorToggle = document.getElementById('colorToggle');
+
+    const svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    connectionCanvas.appendChild(svgDefs);
+
+    // Connection data
+    let gradientIdCounter = 0;
+    let connections = [];
+
+    // Wire‐dragging ephemeral
+    let isDraggingWire = false;
+    let ephemeralWirePaths = [];
+    let ephemeralWireLayers = [];
+    let ephemeralGradient = null;
+    let wireStart = { x: 0, y: 0 };
+    let ephemeralEnd = { x: 0, y: 0 };
+
+    // We'll store the specific "fromCircleEl" in a global var
+    window._dragFromCircleEl = null;
+
+    // Pan/zoom state
+    let gridOffset = { x: 0, y: 0 };
+    let zoom = 1;
+
+    /** Apply the CSS transform to panZoomContainer. */
+    function updatePanZoomTransform() {
+      panZoomContainer.style.transform =
+        `translate(${gridOffset.x}px, ${gridOffset.y}px) scale(${zoom})`;
+    }
+
+    /** Convert screen (clientX, clientY) => local “unscaled” coordinates in panZoomContainer. */
+    function screenToContainerCoords(clientX, clientY) {
+      const cRect = panZoomContainer.getBoundingClientRect();
+      return {
+        x: (clientX - cRect.left) / zoom,
+        y: (clientY - cRect.top) / zoom
+      };
+    }
+
+    /** Return the center of a circle in container coords, ignoring the scale visually. */
+    function getCircleCenterInContainer(circleEl) {
+      const circleRect = circleEl.getBoundingClientRect();
+      const containerRect = panZoomContainer.getBoundingClientRect();
+      const cx = (circleRect.left + circleRect.width * 0.5 - containerRect.left) / zoom;
+      const cy = (circleRect.top + circleRect.height * 0.5 - containerRect.top) / zoom;
+      return { x: cx, y: cy };
+    }
+
+    /** Return the color used by an .io-circle. */
+    function getConnectionPointColor(el) {
+      return el.dataset.connColor || window.getComputedStyle(el).backgroundColor;
+    }
+
+    // *** SAMPLE/FX CHAIN TABS *** //
+    function updateBodyGrid() {
+      const sampleHidden = sampleManager.classList.contains('hidden');
+      const fxHidden = fxChain.classList.contains('hidden');
+      const newCols = sampleHidden ? '0% 100%' : '20% 80%';
+      const newRows = fxHidden ? '100% 0%' : '70% 30%';
+      document.body.style.gridTemplateColumns = newCols;
+      document.body.style.gridTemplateRows = newRows;
+    }
+    sampleTab.addEventListener('click', () => {
+      sampleManager.classList.toggle('hidden');
+      updateBodyGrid();
+      if (sampleManager.classList.contains('hidden') || fxChain.classList.contains('hidden')) setTimelineBevel(1);
+      else setTimelineBevel(0);
+    });
+    fxTab.addEventListener('click', () => {
+      fxChain.classList.toggle('hidden');
+      updateBodyGrid();
+      if (sampleManager.classList.contains('hidden') || fxChain.classList.contains('hidden')) setTimelineBevel(1);
+      else setTimelineBevel(0);
+    });
+
+    // *** TIMELINE BEVEL ANIMATION *** //
+    let timelineBevelProgress = 0, timelineTargetProgress = 0, bevelStartTime = null;
+    const bevelDuration = 500;
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function updateTimelineBevel(progress) {
+      const inset = lerp(4, 8, progress);
+      const blur = lerp(8, 16, progress);
+      const outerY = lerp(4, 6, progress);
+      const outerBlur = lerp(6, 10, progress);
+      const outerAlpha = lerp(0.7, 0.9, progress);
+      const boxShadow = `inset ${inset}px ${inset}px ${blur}px rgba(0,0,0,1),
+                       inset -${inset}px -${inset}px ${blur}px rgba(255,255,255,0.5),
+                       0 ${outerY}px ${outerBlur}px rgba(0,0,0,${outerAlpha})`;
+      timeline.style.boxShadow = boxShadow;
+    }
+    function animateBevel(ts) {
+      if (!bevelStartTime) bevelStartTime = ts;
+      const elapsed = ts - bevelStartTime;
+      const t = Math.min(elapsed / bevelDuration, 1);
+      timelineBevelProgress += (timelineTargetProgress - timelineBevelProgress) * t;
+      updateTimelineBevel(timelineBevelProgress);
+      if (t < 1) requestAnimationFrame(animateBevel);
+      else {
+        timelineBevelProgress = timelineTargetProgress;
+        bevelStartTime = null;
+      }
+    }
+    function setTimelineBevel(target) {
+      timelineTargetProgress = target;
+      bevelStartTime = null;
+      requestAnimationFrame(animateBevel);
+    }
+    setTimelineBevel(0);
+
+    // *** TIMELINE DRAG & ZOOM *** //
+    let isTimelineDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    timeline.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.transport-node')) return;
+      if (e.target.closest('.primitive-node')) return;
+      if (e.target.closest('.note-node')) return;
+      if (e.target.closest('.load-node')) return;
+      if (e.target.closest('.lane-node')) return;
+      if (e.button !== 0) return;
+      isTimelineDragging = true;
+      dragStart = { x: e.clientX, y: e.clientY };
+      timeline.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isTimelineDragging) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      gridOffset.x += dx;
+      gridOffset.y += dy;
+      timeline.style.backgroundPosition = `${gridOffset.x}px ${gridOffset.y}px`;
+      updatePanZoomTransform();
+      dragStart = { x: e.clientX, y: e.clientY };
+    });
+    document.addEventListener('mouseup', () => {
+      if (isTimelineDragging) {
+        isTimelineDragging = false;
+        timeline.style.cursor = 'grab';
+      }
+    });
+    function updateZoom() {
+      const outerSize = 100 * zoom;
+      const innerSize = 10 * zoom;
+      timeline.style.backgroundSize = `
+        ${outerSize}px ${outerSize}px,
+        ${outerSize}px ${outerSize}px,
+        ${innerSize}px ${innerSize}px,
+        ${innerSize}px ${innerSize}px`;
+    }
+    timeline.addEventListener('wheel', (e) => {
+      if (e.target.closest('.transport-node')) return;
+      if (e.target.closest('.primitive-node')) return;
+      if (e.target.closest('.note-node')) return;
+      if (e.target.closest('.load-node')) return;
+      if (e.target.closest('.lane-node')) return;
+      e.preventDefault();
+      if (e.deltaY < 0) zoom *= 1.1; else zoom *= 0.9;
+      zoom = Math.max(0.05, Math.min(zoom, 5));
+      updateZoom();
+      updatePanZoomTransform();
+    });
+    updateZoom();
+
+    // *** TRANSPORT DRAG *** //
+    const transportNode = document.getElementById('transportNode');
+    const transportHandle = document.getElementById('transportHandle');
+    let isTransportDrag = false, transOffX = 0, transOffY = 0;
+    transportHandle.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      isTransportDrag = true;
+      const rect = transportNode.getBoundingClientRect();
+      transOffX = e.clientX - rect.left;
+      transOffY = e.clientY - rect.top;
+      transportHandle.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isTransportDrag) return;
+      const timelineRect = timeline.getBoundingClientRect();
+      let newLeft = e.clientX - transOffX - timelineRect.left;
+      let newTop = e.clientY - transOffY - timelineRect.top;
+      transportNode.style.left = newLeft + 'px';
+      transportNode.style.top = newTop + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (isTransportDrag) {
+        isTransportDrag = false;
+        transportHandle.style.cursor = 'grab';
+      }
+    });
+
+    // *** TRANSPORT BUTTONS *** //
+    const queueButton = document.getElementById('queueButton');
+    const queueCaret = document.getElementById('queueCaret');
+    const queueDropdown = document.getElementById('queueDropdown');
+    const queueIcon = document.getElementById('queueIcon');
+    const queueLabel = document.getElementById('queueLabel');
+    queueCaret.addEventListener('click', (e) => {
+      e.stopPropagation();
+      queueDropdown.style.display = (queueDropdown.style.display === 'block') ? 'none' : 'block';
+    });
+    document.addEventListener('click', () => { queueDropdown.style.display = 'none'; });
+    queueDropdown.addEventListener('click', (e) => {
+      if (e.target.tagName.toLowerCase() === 'li') {
+        queueIcon.textContent = e.target.getAttribute('data-icon');
+        queueLabel.textContent = e.target.getAttribute('data-label');
+        queueDropdown.style.display = 'none';
+      }
+    });
+    document.getElementById('stopBtn').addEventListener('click', () => {
+      console.log('Stop clicked!');
+    });
+    document.getElementById('stopAllBtn').addEventListener('click', () => {
+      console.log('Stop All clicked!');
+    });
+    document.getElementById('batchInput').addEventListener('change', (e) => {
+      console.log('Batch size changed to:', e.target.value);
+    });
+
+    // *** TIMELINE CONTEXT MENU *** //
+    timeline.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('.transport-node')) return;
+      if (e.target.closest('.primitive-node')) return;
+      if (e.target.closest('.note-node')) return;
+      if (e.target.closest('.load-node')) return;
+      if (e.target.closest('.lane-node')) return;
+      e.preventDefault();
+      timelineMenu.style.display = 'block';
+      timelineMenu.style.left = e.clientX + 'px';
+      timelineMenu.style.top = e.clientY + 'px';
+    });
+    document.addEventListener('click', () => { timelineMenu.style.display = 'none'; });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') timelineMenu.style.display = 'none';
+    });
+    document.getElementById('menuAddGroup').addEventListener('click', () => {
+      console.log('Add Group clicked');
+      timelineMenu.style.display = 'none';
+    });
+
+    // *** "Add Node" panel *** //
+    let isAddNodeDragging = false, addNodeOffsetX = 0, addNodeOffsetY = 0;
+    let isAddNodeExpanded = true;
+    addNodeHeader.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      isAddNodeDragging = true;
+      const rect = addNodePanel.getBoundingClientRect();
+      addNodeOffsetX = e.clientX - rect.left;
+      addNodeOffsetY = e.clientY - rect.top;
+      addNodeHeader.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isAddNodeDragging) return;
+      addNodePanel.style.left = (e.clientX - addNodeOffsetX) + 'px';
+      addNodePanel.style.top = (e.clientY - addNodeOffsetY) + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (isAddNodeDragging) {
+        isAddNodeDragging = false;
+        addNodeHeader.style.cursor = 'grab';
+      }
+    });
+    addNodeToggle.addEventListener('click', () => {
+      isAddNodeExpanded = !isAddNodeExpanded;
+      addNodeContent.style.display = isAddNodeExpanded ? 'block' : 'none';
+      addNodeToggle.textContent = isAddNodeExpanded ? '▼' : '►';
+    });
+    addNodeClose.addEventListener('click', () => {
+      addNodePanel.style.display = 'none';
+    });
+
+    // *** NODE CREATION *** //
+    addNodeSubmenu.addEventListener('click', (e) => {
+      if (e.target.tagName.toLowerCase() === 'li') {
+        const nodetype = e.target.getAttribute('data-nodetype');
+        const x = parseInt(timelineMenu.style.left) || 100;
+        const y = parseInt(timelineMenu.style.top) || 100;
+        if (nodetype === 'primitive') createPrimitiveNode(x, y);
+        else if (nodetype === 'note') createNoteNode(x, y);
+        else if (nodetype === 'load') createLoadNode(x, y);
+        else if (nodetype === 'lane') createLaneNode(x, y);
+        timelineMenu.style.display = 'none';
+      }
+    });
+
+    /** Start ephemeral wire from a specific circle. */
+    function startEphemeralWire(fromCircleEl, screenX, screenY) {
+      isDraggingWire = true;
+      window._dragFromCircleEl = fromCircleEl;
+
+      // Remember the starting coords
+      wireStart = screenToContainerCoords(screenX, screenY);
+      ephemeralEnd = { x: wireStart.x, y: wireStart.y };
+
+      // Create ephemeral wire visuals
+      ephemeralWirePaths = [];
+      ephemeralWireLayers = [];
+      const tempGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+      tempGrad.setAttribute("id", "temp-grad");
+      tempGrad.setAttribute("gradientUnits", "userSpaceOnUse");
+      const stopA = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      stopA.setAttribute("offset", "0%");
+      stopA.setAttribute("stop-color", getConnectionPointColor(fromCircleEl));
+      const stopB = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      stopB.setAttribute("offset", "100%");
+      stopB.setAttribute("stop-color", getConnectionPointColor(fromCircleEl));
+      tempGrad.appendChild(stopA);
+      tempGrad.appendChild(stopB);
+      svgDefs.appendChild(tempGrad);
+      ephemeralGradient = tempGrad;
+
+      // 3 ephemeral layers
+      for (let i = 0; i < 3; i++) {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.classList.add('connection-path');
+        path.setAttribute("stroke", "url(#temp-grad)");
+        connectionCanvas.appendChild(path);
+        ephemeralWirePaths.push(path);
+        ephemeralWireLayers.push({
+          baseOffset: (Math.random() * 20) - 10,
+          variationAmplitude: 5 + Math.random() * 5,
+          phase: Math.random() * Math.PI * 2,
+          baseWidth: 2 + Math.random() * 2,
+          widthVariation: 1 + Math.random(),
+          opacity: 0.5
+        });
+      }
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDraggingWire) return;
+      ephemeralEnd = screenToContainerCoords(e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (!isDraggingWire) return;
+      isDraggingWire = false;
+
+      // Remove ephemeral gradient
+      if (ephemeralGradient) {
+        svgDefs.removeChild(ephemeralGradient);
+        ephemeralGradient = null;
+      }
+
+      // See what circle we dropped on
+      const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+      if (dropTarget && dropTarget.classList.contains('io-circle')) {
+        const fromCircleEl = window._dragFromCircleEl;
+        const toCircleEl = dropTarget;
+
+        // If we only allow output->input or input->output
+        if (fromCircleEl.dataset.port === toCircleEl.dataset.port) {
+          // same port type => skip
+          ephemeralWirePaths.forEach(path => connectionCanvas.removeChild(path));
+          ephemeralWirePaths = [];
+          ephemeralWireLayers = [];
+          console.log("Skipping: can't connect same port types");
+          window._dragFromCircleEl = null;
+          return;
+        }
+
+        // Good to connect
+        const permanentGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        const gradId = "grad-" + (gradientIdCounter++);
+        permanentGrad.setAttribute("id", gradId);
+        permanentGrad.setAttribute("gradientUnits", "userSpaceOnUse");
+
+        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop1.setAttribute("offset", "0%");
+        stop1.setAttribute("stop-color", getConnectionPointColor(fromCircleEl));
+
+        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop2.setAttribute("offset", "100%");
+        stop2.setAttribute("stop-color", getConnectionPointColor(toCircleEl));
+
+        permanentGrad.appendChild(stop1);
+        permanentGrad.appendChild(stop2);
+        svgDefs.appendChild(permanentGrad);
+
+        // Create a new connection object that references these EXACT circles
+        let permanentConn = {
+          fromCircleEl: fromCircleEl,
+          toCircleEl: toCircleEl,
+          gradientEl: permanentGrad,
+          gradientId: gradId,
+          layers: [],
+          pathEls: []
+        };
+
+        // 5 path layers for fancy look
+        for (let i = 0; i < 5; i++) {
+          let path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.classList.add('connection-path');
+          path.setAttribute("stroke", "url(#" + gradId + ")");
+          connectionCanvas.appendChild(path);
+          permanentConn.pathEls.push(path);
+          permanentConn.layers.push({
+            baseOffset: (Math.random() * 20) - 10,
+            variationAmplitude: 5 + Math.random() * 5,
+            phase: Math.random() * Math.PI * 2,
+            baseWidth: 2 + Math.random() * 2,
+            widthVariation: 1 + Math.random(),
+            opacity: (i === 2 ? 0.8 : 0.4)
+          });
+        }
+        connections.push(permanentConn);
+      }
+
+      ephemeralWirePaths.forEach(path => connectionCanvas.removeChild(path));
+      ephemeralWirePaths = [];
+      ephemeralWireLayers = [];
+      window._dragFromCircleEl = null;
+    });
+
+    // *** ANIMATION LOOP *** //
+    let globalTime = 0;
+    function updateScene() {
+      globalTime++;
+
+      // Ephemeral wire
+      if (ephemeralWirePaths.length > 0) {
+        let x1 = wireStart.x, y1 = wireStart.y;
+        let x2 = ephemeralEnd.x, y2 = ephemeralEnd.y;
+        let dx = x2 - x1, dy = y2 - y1;
+        let len = Math.sqrt(dx*dx + dy*dy) || 1;
+        let perpX = -dy/len, perpY = dx/len;
+
+        ephemeralWirePaths.forEach((path, i) => {
+          let param = ephemeralWireLayers[i];
+          let offset = param.baseOffset + Math.sin((globalTime/20) + param.phase) * param.variationAmplitude;
+          let mx = (x1 + x2)*0.5, my = (y1 + y2)*0.5;
+          let cp_x = mx + perpX * offset;
+          let cp_y = my + perpY * offset;
+          let d = `M ${x1} ${y1} Q ${cp_x} ${cp_y} ${x2} ${y2}`;
+          path.setAttribute('d', d);
+          let width = param.baseWidth + Math.sin((globalTime/10) + param.phase) * param.widthVariation;
+          path.style.strokeWidth = width + 'px';
+          path.style.opacity = param.opacity;
+        });
+        if (ephemeralGradient) {
+          ephemeralGradient.setAttribute("x1", x1);
+          ephemeralGradient.setAttribute("y1", y1);
+          ephemeralGradient.setAttribute("x2", x2);
+          ephemeralGradient.setAttribute("y2", y2);
+        }
+      }
+
+      // Permanent connections
+      connections.forEach(conn => {
+        const fromCircle = conn.fromCircleEl;
+        const toCircle = conn.toCircleEl;
+        if (!fromCircle || !toCircle) return;
+
+        const { x: x1, y: y1 } = getCircleCenterInContainer(fromCircle);
+        const { x: x2, y: y2 } = getCircleCenterInContainer(toCircle);
+
+        const dx = x2 - x1, dy = y2 - y1;
+        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+        const perpX = -dy/len, perpY = dx/len;
+
+        conn.layers.forEach((param, i) => {
+          let pathEl = conn.pathEls[i];
+          let offset = param.baseOffset + Math.sin((globalTime/20) + param.phase) * param.variationAmplitude;
+          let mx = (x1 + x2)*0.5, my = (y1 + y2)*0.5;
+          let cp_x = mx + perpX * offset;
+          let cp_y = my + perpY * offset;
+          let d = `M ${x1} ${y1} Q ${cp_x} ${cp_y} ${x2} ${y2}`;
+          pathEl.setAttribute('d', d);
+          let width = param.baseWidth + Math.sin((globalTime/10) + param.phase) * param.widthVariation;
+          pathEl.style.strokeWidth = width + 'px';
+          pathEl.style.opacity = param.opacity;
+        });
+        if (conn.gradientEl) {
+          conn.gradientEl.setAttribute("x1", x1);
+          conn.gradientEl.setAttribute("y1", y1);
+          conn.gradientEl.setAttribute("x2", x2);
+          conn.gradientEl.setAttribute("y2", y2);
+          // Update gradient stop colors
+          conn.gradientEl.firstChild.setAttribute("stop-color", getConnectionPointColor(fromCircle));
+          conn.gradientEl.lastChild.setAttribute("stop-color", getConnectionPointColor(toCircle));
+        }
+      });
+
+      requestAnimationFrame(updateScene);
+    }
+    requestAnimationFrame(updateScene);
+
+    // *** CREATE NODES *** //
+    function createPrimitiveNode(screenX, screenY) {
+      const node = document.createElement('div');
+      node.className = 'primitive-node';
+      node.style.width = '140px';
+      const { x, y } = screenToContainerCoords(screenX, screenY);
+      node.style.left = x + 'px';
+      node.style.top = y + 'px';
+      const header = document.createElement('div');
+      header.className = 'primitive-header';
+      header.textContent = 'Primitive';
+      node.appendChild(header);
+      const body = document.createElement('div');
+      body.className = 'primitive-body';
+      body.textContent = '(No real audio logic)';
+      node.appendChild(body);
+
+      // Output circle
+      const output = document.createElement('div');
+      output.classList.add('primitive-output', 'io-circle');
+      output.dataset.port = "output";
+      output.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        startEphemeralWire(output, e.clientX, e.clientY);
+      });
+      node.appendChild(output);
+
+      nodeLayer.appendChild(node);
+
+      // Draggable
+      let isDrag = false, offsetX = 0, offsetY = 0;
+      header.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDrag = true;
+        const cPos = screenToContainerCoords(e.clientX, e.clientY);
+        const nodeLeft = parseFloat(node.style.left) || 0;
+        const nodeTop = parseFloat(node.style.top) || 0;
+        offsetX = cPos.x - nodeLeft;
+        offsetY = cPos.y - nodeTop;
+        node.style.zIndex = '1000';
+      });
+      document.addEventListener('mousemove', (e2) => {
+        if (!isDrag) return;
+        const cPos = screenToContainerCoords(e2.clientX, e2.clientY);
+        node.style.left = (cPos.x - offsetX) + 'px';
+        node.style.top = (cPos.y - offsetY) + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if (isDrag) {
+          isDrag = false;
+          node.style.zIndex = 'auto';
+        }
+      });
+    }
+
+    function createNoteNode(screenX, screenY) {
+      const note = document.createElement('div');
+      note.className = 'note-node';
+      note.style.width = '160px';
+      note.style.height = '120px';
+      const { x, y } = screenToContainerCoords(screenX, screenY);
+      note.style.left = x + 'px';
+      note.style.top = y + 'px';
+      const noteHeader = document.createElement('div');
+      noteHeader.className = 'note-header';
+      noteHeader.textContent = ' ';
+      note.appendChild(noteHeader);
+      const noteContent = document.createElement('div');
+      noteContent.className = 'note-content';
+      noteContent.contentEditable = 'true';
+      noteContent.innerText = '(Type your note here...)';
+      note.appendChild(noteContent);
+
+      // Add input and output circles
+      const inputCircle = document.createElement('div');
+      inputCircle.classList.add('io-circle', 'input');
+      inputCircle.dataset.port = "input";
+      inputCircle.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        startEphemeralWire(inputCircle, e.clientX, e.clientY);
+      });
+      note.appendChild(inputCircle);
+
+      const outputCircle = document.createElement('div');
+      outputCircle.classList.add('io-circle', 'output');
+      outputCircle.dataset.port = "output";
+      outputCircle.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        startEphemeralWire(outputCircle, e.clientX, e.clientY);
+      });
+      note.appendChild(outputCircle);
+
+      nodeLayer.appendChild(note);
+
+      // Draggable
+      let isDrag = false, offsetX = 0, offsetY = 0;
+      noteHeader.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDrag = true;
+        const cPos = screenToContainerCoords(e.clientX, e.clientY);
+        const nLeft = parseFloat(note.style.left) || 0;
+        const nTop = parseFloat(note.style.top) || 0;
+        offsetX = cPos.x - nLeft;
+        offsetY = cPos.y - nTop;
+        note.style.zIndex = '1000';
+      });
+      document.addEventListener('mousemove', (e2) => {
+        if (!isDrag) return;
+        const cPos = screenToContainerCoords(e2.clientX, e2.clientY);
+        note.style.left = (cPos.x - offsetX) + 'px';
+        note.style.top = (cPos.y - offsetY) + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if (isDrag) {
+          isDrag = false;
+          note.style.zIndex = 'auto';
+        }
+      });
+    }
+
+    // *** MULTI-SLOT Load Node (formerly LoadAudio Node) ***
+    function createLoadNode(screenX, screenY) {
+      const node = document.createElement('div');
+      node.className = 'load-node';
+
+      // We'll store all loaded files in an array (unused in this demo)
+      node._loadedFiles = [];
+
+      const { x, y } = screenToContainerCoords(screenX, screenY);
+      node.style.left = x + 'px';
+      node.style.top = y + 'px';
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'load-header';
+      node.appendChild(header);
+
+      // A container for the slot rows
+      const content = document.createElement('div');
+      content.className = 'load-content';
+      node.appendChild(content);
+
+      // A container for the dynamic outputs (one per slot)
+      const outputsContainer = document.createElement('div');
+      outputsContainer.className = 'load-outputs';
+      node.appendChild(outputsContainer);
+
+      function createLoadSlot() {
+        const slot = document.createElement('div');
+        slot.className = 'load-slot';
+
+        // Hidden file input (accepts any file)
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.removeAttribute('accept');
+        fileInput.style.display = 'none';
+        slot.appendChild(fileInput);
+
+        // Floppy disk button with a handmade icon
+        const btnFloppy = document.createElement('button');
+        btnFloppy.style.background = 'none';
+        btnFloppy.style.border = 'none';
+        btnFloppy.style.padding = '0';
+        btnFloppy.style.cursor = 'pointer';
+        btnFloppy.innerHTML = `
+          <span class="floppy-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24">
+              <rect x="2" y="2" width="20" height="20" style="fill: var(--floppy-stroke); stroke: var(--floppy-stroke); stroke-width: 2"/>
+              <rect x="6" y="2" width="12" height="6" style="fill: var(--floppy-fill);"/>
+            </svg>
+          </span>
+        `;
+        slot.appendChild(btnFloppy);
+
+        // Info text
+        const info = document.createElement('div');
+        info.className = 'load-info';
+        info.textContent = '(no file loaded)';
+        slot.appendChild(info);
+
+        // Behavior: clicking the floppy button opens the file selector.
+        btnFloppy.addEventListener('click', () => {
+          fileInput.click();
+        });
+        fileInput.addEventListener('change', async (e) => {
+          if (!fileInput.files || fileInput.files.length < 1) return;
+          const file = fileInput.files[0];
+          info.textContent = 'selected: ' + file.name;
+        });
+
+        return slot;
+      }
+
+      // Create an initial slot + output
+      function addSlotAndOutput() {
+        const newSlot = createLoadSlot();
+        content.appendChild(newSlot);
+
+        // Create output circle
+        const outputCircle = document.createElement('div');
+        outputCircle.classList.add('io-circle');
+        outputCircle.dataset.port = "output";  // mark it as output
+        // Default color
+        outputCircle.dataset.connColor = "#ff6666";
+        outputCircle.style.backgroundColor = "#ff6666";
+        outputCircle.style.borderColor = shadeColor("#ff6666", -20);
+
+        // Mouse down to start wire
+        outputCircle.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          startEphemeralWire(outputCircle, e.clientX, e.clientY);
+        });
+
+        outputsContainer.appendChild(outputCircle);
+      }
+      addSlotAndOutput(); // initial
+
+      // Plus button to add more slots (and outputs)
+      const addBtn = document.createElement('div');
+      addBtn.className = 'load-add-btn';
+      addBtn.textContent = '+';
+      node.appendChild(addBtn);
+
+      addBtn.addEventListener('click', () => {
+        addSlotAndOutput();
+      });
+
+      // Draggable
+      let isDrag = false, offsetX = 0, offsetY = 0;
+      header.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDrag = true;
+        const cPos = screenToContainerCoords(e.clientX, e.clientY);
+        const nLeft = parseFloat(node.style.left) || 0;
+        const nTop = parseFloat(node.style.top) || 0;
+        offsetX = cPos.x - nLeft;
+        offsetY = cPos.y - nTop;
+        node.style.zIndex = '1000';
+      });
+      document.addEventListener('mousemove', (e2) => {
+        if (!isDrag) return;
+        const cPos = screenToContainerCoords(e2.clientX, e2.clientY);
+        node.style.left = (cPos.x - offsetX) + 'px';
+        node.style.top = (cPos.y - offsetY) + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if (isDrag) {
+          isDrag = false;
+          node.style.zIndex = 'auto';
+        }
+      });
+
+      nodeLayer.appendChild(node);
+    }
+
+    // *** LANE NODE (multiple row inputs + row outputs) ***
+    function createLaneNode(screenX, screenY) {
+      const lane = document.createElement('div');
+      lane.className = 'lane-node';
+      const pos = screenToContainerCoords(screenX, screenY);
+      lane.style.left = pos.x + 'px';
+      lane.style.top = pos.y + 'px';
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'lane-header';
+      header.textContent = 'Lane';
+      lane.appendChild(header);
+
+      // Container for lane rows
+      const rowsContainer = document.createElement('div');
+      rowsContainer.className = 'lane-rows-container';
+      lane.appendChild(rowsContainer);
+
+      function createLaneRow() {
+        const row = document.createElement('div');
+        row.className = 'lane-row';
+
+        // Input circle
+        const inputCircle = document.createElement('div');
+        inputCircle.classList.add('lane-input', 'io-circle');
+        inputCircle.dataset.port = "input";
+        inputCircle.dataset.connColor = "#80ff80";
+        inputCircle.style.backgroundColor = "#80ff80";
+        inputCircle.style.borderColor = shadeColor("#80ff80", -20);
+        inputCircle.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          startEphemeralWire(inputCircle, e.clientX, e.clientY);
+        });
+        row.appendChild(inputCircle);
+
+        // Waveform canvas
+        const canvas = document.createElement('canvas');
+        canvas.className = 'lane-waveform-canvas';
+        row.appendChild(canvas);
+
+        // "No input" overlay
+        const noInput = document.createElement('div');
+        noInput.className = 'lane-noinput';
+        noInput.textContent = 'No input connected';
+        row.appendChild(noInput);
+
+        // Output circle
+        const outputCircle = document.createElement('div');
+        outputCircle.classList.add('lane-output', 'io-circle');
+        outputCircle.dataset.port = "output";
+        outputCircle.dataset.connColor = "#ff6666";
+        outputCircle.style.backgroundColor = "#ff6666";
+        outputCircle.style.borderColor = shadeColor("#ff6666", -20);
+        outputCircle.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          startEphemeralWire(outputCircle, e.clientX, e.clientY);
+        });
+        row.appendChild(outputCircle);
+
+        return row;
+      }
+
+      rowsContainer.appendChild(createLaneRow());
+
+      // Add row button
+      const addRowContainer = document.createElement('div');
+      addRowContainer.className = 'lane-add-row';
+      const addButton = document.createElement('div');
+      addButton.className = 'lane-add-button';
+      addButton.textContent = '+';
+      addRowContainer.appendChild(addButton);
+      lane.appendChild(addRowContainer);
+
+      addButton.addEventListener('click', () => {
+        rowsContainer.appendChild(createLaneRow());
+      });
+
+      nodeLayer.appendChild(lane);
+
+      // Draggable
+      let isDrag = false, offsetX = 0, offsetY = 0;
+      header.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDrag = true;
+        const cPos = screenToContainerCoords(e.clientX, e.clientY);
+        const nLeft = parseFloat(lane.style.left) || 0;
+        const nTop = parseFloat(lane.style.top) || 0;
+        offsetX = cPos.x - nLeft;
+        offsetY = cPos.y - nTop;
+        lane.style.zIndex = '1000';
+      });
+      document.addEventListener('mousemove', (e2) => {
+        if (!isDrag) return;
+        const cPos = screenToContainerCoords(e2.clientX, e2.clientY);
+        lane.style.left = (cPos.x - offsetX) + 'px';
+        lane.style.top = (cPos.y - offsetY) + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if (isDrag) {
+          isDrag = false;
+          lane.style.zIndex = 'auto';
+        }
+      });
+    }
+
+    // *** DOUBLE‐CLICK TO CHANGE CIRCLE COLOR *** //
+    document.addEventListener('dblclick', (e) => {
+      if (!e.target.classList.contains('io-circle')) return;
+      let current = e.target.dataset.connColor || window.getComputedStyle(e.target).backgroundColor;
+      if (current.startsWith("rgb")) { current = rgbToHex(current); }
+      let input = prompt("Enter 6-digit hex color (without #)", current.replace("#", ""));
+      if (input && /^[0-9A-Fa-f]{6}$/.test(input)) {
+        input = "#" + input;
+        e.target.dataset.connColor = input;
+        e.target.style.backgroundColor = input;
+        e.target.style.borderColor = shadeColor(input, -20);
+      }
+    });
+
+    function rgbToHex(rgb) {
+      const result = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(rgb);
+      return result ? "#" +
+        ("0" + parseInt(result[1], 10).toString(16)).slice(-2) +
+        ("0" + parseInt(result[2], 10).toString(16)).slice(-2) +
+        ("0" + parseInt(result[3], 10).toString(16)).slice(-2)
+        : rgb;
+    }
+
+    // --- Updated shadeColor: supports 6 or 8-digit hex and preserves transparency ---
+    function shadeColor(color, percent) {
+      color = color.replace("#", "");
+      if (color.length === 6) {
+        let num = parseInt(color, 16);
+        let amt = Math.round(2.55 * percent);
+        let R = (num >> 16) + amt;
+        let G = (num >> 8 & 0x00FF) + amt;
+        let B = (num & 0x0000FF) + amt;
+        R = Math.max(Math.min(255, R), 0);
+        G = Math.max(Math.min(255, G), 0);
+        B = Math.max(Math.min(255, B), 0);
+        return "#" + ((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1);
+      } else if (color.length === 8) {
+        // Extract RGBA components
+        let R = parseInt(color.slice(0, 2), 16);
+        let G = parseInt(color.slice(2, 4), 16);
+        let B = parseInt(color.slice(4, 6), 16);
+        let A = parseInt(color.slice(6, 8), 16);
+        let amt = Math.round(2.55 * percent);
+        R = Math.max(Math.min(255, R + amt), 0);
+        G = Math.max(Math.min(255, G + amt), 0);
+        B = Math.max(Math.min(255, B + amt), 0);
+        let alpha = (A / 255).toFixed(2);
+        return `rgba(${R}, ${G}, ${B}, ${alpha})`;
+      }
+      return color;
+    }
+
+    // --- Helper: convert hex to rgba string with specified alpha ---
+    function hexToRgbA(hex, alpha) {
+      hex = hex.replace("#", "");
+      if (hex.length === 6) {
+        let r = parseInt(hex.slice(0, 2), 16);
+        let g = parseInt(hex.slice(2, 4), 16);
+        let b = parseInt(hex.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      } else if (hex.length === 8) {
+        let r = parseInt(hex.slice(0, 2), 16);
+        let g = parseInt(hex.slice(2, 4), 16);
+        let b = parseInt(hex.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+      return hex;
+    }
+
+    // --- Theme generator: now uses full hex (with alpha if provided) ---
+    function generateTheme(baseColor) {
+      return {
+        '--bg-center': shadeColor(baseColor, -30),
+        '--bg-edge': shadeColor(baseColor, -50),
+        '--sample-color': shadeColor(baseColor, 10),
+        '--timeline-color': shadeColor(baseColor, 0),
+        '--fxchain-color': shadeColor(baseColor, -10),
+        '--ruby-bg': baseColor,
+        '--ruby-border': shadeColor(baseColor, -20),
+        '--ruby-hover': shadeColor(baseColor, 20),
+        '--ruby-text': '#f0f0f0',
+        '--ruby-muted': '#c0c0c0',
+        '--ruby-disabled': '#99',
+        '--lane-bg': hexToRgbA(baseColor, 0.5),
+        '--lane-add-bg': hexToRgbA(shadeColor(baseColor, -10), 0.5),
+        '--lane-add-button': shadeColor(baseColor, 0),
+        '--floppy-fill': shadeColor(baseColor, 0),
+        '--floppy-stroke': shadeColor(baseColor, -20)
+      };
+    }
+
+    // --- THEME TOGGLE: preserves transparency in the theme variables, leaves wires untouched ---
+    colorToggle.addEventListener('click', () => {
+      const input = prompt("Enter 8-digit hex color (e.g. FF66CCFF) for background:");
+      if (!input) return;
+      const hex = input.replace("#", "");
+      if (!/^[0-9A-Fa-f]{8}$/.test(hex)) {
+        alert("Please enter exactly 8 hex digits!");
+        return;
+      }
+      const baseColor = "#" + hex;
+      const themeVars = generateTheme(baseColor);
+      for (const [key, value] of Object.entries(themeVars)) {
+        document.documentElement.style.setProperty(key, value);
+      }
+    });
+
+    // Init
+    updatePanZoomTransform();
+
+    // *** SPARKLE EFFECT ***
+    function createSparkle() {
+      const sparkle = document.createElement('div');
+      sparkle.classList.add('sparkle');
+      sparkle.style.left = Math.random() * window.innerWidth + 'px';
+      sparkle.style.top = Math.random() * window.innerHeight + 'px';
+      document.getElementById('sparkles').appendChild(sparkle);
+      setTimeout(() => {
+        sparkle.remove();
+      }, 1000);
+    }
+    setInterval(createSparkle, 200);
+  </script>
+</body>
+</html>
