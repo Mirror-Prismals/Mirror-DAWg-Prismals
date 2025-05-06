@@ -70,7 +70,7 @@ class IslandFPS {
 
   createIsland() {
     // Create noise texture for sand
-    const noiseTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg');
+    const noiseTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg'); // idk who this is < blame claude
     noiseTexture.wrapS = noiseTexture.wrapT = THREE.RepeatWrapping;
     noiseTexture.repeat.set(5, 5);
 
