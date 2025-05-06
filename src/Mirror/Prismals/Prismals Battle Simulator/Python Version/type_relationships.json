@@ -1,0 +1,142 @@
+{
+  "Plant": {
+    "weaknesses": ["Flame", "Virulent", "Fungal", "Tech", "Bug"],
+    "resistances": ["Water", "Life", "Frozen", "Entropy"]
+  },
+  "Geological": {
+    "weaknesses": ["Plant", "Water", "Tech"],
+    "resistances": ["Metal"]
+  },
+  "Flame": {
+    "weaknesses": ["Water", "Geological"],
+    "resistances": ["Plant", "Frozen", "Metal"]
+  },
+  "Eruption": {
+    "weaknesses": [],
+    "resistances": ["Water"]
+  },
+  "Water": {
+    "weaknesses": ["Electricity", "Plant"],
+    "resistances": []
+  },
+  "Frozen": {
+    "weaknesses": ["Flame", "Heat"],
+    "resistances": ["Plant", "Life"]
+  },
+  "Fungal": {
+    "weaknesses": ["Flame", "Frozen"],
+    "resistances": ["Plant", "Life", "Entropy"]
+  },
+  "Life": {
+    "weaknesses": ["Entropy", "Virulent", "Tech"],
+    "resistances": ["Plant", "Light", "Faith"]
+  },
+  "Entropy": {
+    "weaknesses": ["Plant"],
+    "resistances": ["Space"]
+  },
+  "Tech": {
+    "weaknesses": ["Magick", "Space", "Ancient"],
+    "resistances": []
+  },
+  "Magick": {
+    "weaknesses": ["Music", "Bug"],
+    "resistances": []
+  },
+  "Shade": {
+    "weaknesses": ["Light", "Radiance", "Sound"],
+    "resistances": []
+  },
+  "Faith": {
+    "weaknesses": ["Entropy"],
+    "resistances": ["Shade"]
+  },
+  "Abyssal": {
+    "weaknesses": [],
+    "resistances": ["Electricity"]
+  },
+  "Crystal": {
+    "weaknesses": ["Sound", "Geological"],
+    "resistances": ["Metal", "Psychic", "Shade"]
+  },
+  "Metal": {
+    "weaknesses": ["Flame", "Tech", "Eruption"],
+    "resistances": []
+  },
+  "Heat": {
+    "weaknesses": ["Space"],
+    "resistances": []
+  },
+  "Dream": {
+    "weaknesses": ["Shade", "Psychic", "Sound"],
+    "resistances": []
+  },
+  "Sound": {
+    "weaknesses": [],
+    "resistances": []
+  },
+  "Music": {
+    "weaknesses": ["Sound"],
+    "resistances": ["Entropy", "Magick"]
+  },
+  "Bug": {
+    "weaknesses": ["Tech", "Electricity"],
+    "resistances": ["Tech"]
+  },
+  "Virulent": {
+    "weaknesses": ["Frozen"],
+    "resistances": ["Entropy", "Fungal", "Plant"]
+  },
+  "Psychic": {
+    "weaknesses": ["Tech", "Sound"],
+    "resistances": []
+  },
+  "Space": {
+    "weaknesses": [],
+    "resistances": []
+  },
+  "Wyvern": {
+    "weaknesses": ["Frozen"],
+    "resistances": ["Fire", "Plant", "Water"]
+  },
+  "Corrosion": {
+    "weaknesses": ["Plant", "Life", "Metal"],
+    "resistances": ["Fire", "Plant", "Water"]
+  },
+  "Radiance": {
+    "weaknesses": [],
+    "resistances": ["Shade"]
+  },
+    "Electricity": {
+    "weaknesses": ["Geological"],
+    "resistances": []
+  },
+    "Color": {
+    "weaknesses": ["Entropy"],
+    "resistances": []
+  },
+    "Sky": {
+    "weaknesses": ["Electricity", "Sound"],
+    "resistances": []
+  },
+    "Art": {
+    "weaknesses": ["Corrosion", "Sound"],
+    "resistances": []
+  },
+	  "Ancient": {
+	  "weaknesses": [],
+	  "resistances": ["Tech", "Magick"]
+  },
+    "Quilted": {
+    "weaknesses": [],
+    "resistances": []
+  },
+    "Candy": {
+    "weaknesses": [],
+    "resistances": []
+  },
+    "Martial": {
+    "weaknesses": [],
+    "resistances": []
+  }
+}
