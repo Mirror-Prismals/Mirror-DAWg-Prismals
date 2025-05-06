@@ -1,0 +1,122 @@
+[
+    {
+        "name": "Ancient Future Cardinaltron",
+        "hp": 200,
+        "attack": 100,
+        "defense": 100,
+        "special_attack": 120,
+        "special_defense": 80,
+        "speed": 90,
+        "types": ["Entropy", "Ancient", "Tech"]
+    },
+    {
+        "name": "Elephantum",
+        "hp": 180,
+        "attack": 100,
+        "defense": 100,
+        "special_attack": 130,
+        "special_defense": 90,
+        "speed": 110,
+        "types": ["Shade"]
+    },
+    {
+        "name": "Elephantussle",
+        "hp": 200,
+        "attack": 100,
+        "defense": 130,
+        "special_attack": 90,
+        "special_defense": 150,
+        "speed": 70,
+        "types": ["Martial"]
+    },
+    {
+        "name": "Sharkuterie",
+        "hp": 190,
+        "attack": 100,
+        "defense": 100,
+        "special_attack": 110,
+        "special_defense": 110,
+        "speed": 100,
+        "types": ["Abyssal", "Water"]
+    },
+    {
+        "name": "Puptish",
+        "hp": 200,
+        "attack": 100,
+        "defense": 100,
+        "special_attack": 120,
+        "special_defense": 80,
+        "speed": 90,
+        "types": ["Water"]
+    },
+    {
+        "name": "Devlish",
+        "hp": 180,
+        "attack": 100,
+        "defense": 100,
+        "special_attack": 130,
+        "special_defense": 90,
+        "speed": 110,
+        "types": ["Abyssal", "Heat"]
+    },
+    {
+        "name": "Xylopede",
+        "hp": 200,
+        "attack": 100,
+        "defense": 130,
+        "special_attack": 90,
+        "special_defense": 150,
+        "speed": 70,
+        "types": ["Music", "Bug"]
+    },
+    {
+        "name": "Shatterwing",
+        "hp": 230,
+        "attack": 110,
+        "defense": 170,
+        "special_attack": 155,
+        "special_defense": 120,
+        "speed": 130,
+        "types": ["Crystal", "Wyvern", "Sound"]
+    },
+    {
+        "name": "Gumblor",
+        "hp": 230,
+        "attack": 130,
+        "defense": 120,
+        "special_attack": 105,
+        "special_defense": 165,
+        "speed": 125,
+        "types": ["Candy"]
+    },
+    {
+        "name": "Candirion",
+        "hp": 190,
+        "attack": 120,
+        "defense": 120,
+        "special_attack": 115,
+        "special_defense": 155,
+        "speed": 135,
+        "types": ["Candy"]
+    },
+    {
+        "name": "Cloud Core",
+        "hp": 180,
+        "attack": 120,
+        "defense": 120,
+        "special_attack": 165,
+        "special_defense": 125,
+        "speed": 105,
+        "types": ["Sky", "Quilted"]
+    },
+    {
+        "name": "Void Eye",
+        "hp": 215,
+        "attack": 120,
+        "defense": 125,
+        "special_attack": 175,
+        "special_defense": 155,
+        "speed": 90,
+        "types": ["Space", "Shade", "Entropy"]
+    }
+]
