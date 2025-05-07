@@ -1,0 +1,39 @@
+// Comb Filter Fluid Simulation using Square Waves
+
+// Global reverb for ambience
+JCRev reverb => dac;
+reverb.mix(0.25);
+
+// Create a square wave oscillator as the source
+SqrOsc sqr => Gain g1 => DelayL dly1 => Gain fb1 => dly1 => Gain g2 => DelayL dly2 => Gain fb2 => dly2 => reverb;
+440 => sqr.freq;       // Base frequency of the square wave
+0.3 => sqr.gain;       // Set a moderate amplitude
+
+// Set maximum delay times for our comb filters
+50::ms => dly1.max;
+50::ms => dly2.max;
+
+// Set initial delay times (these will be modulated)
+20::ms => dly1.delay;
+20::ms => dly2.delay;
+
+// Set feedback gains for each comb filter (must be < 1 for stability)
+0.7 => fb1.gain;
+0.6 => fb2.gain;
+
+// Create LFOs to modulate the delay times (thus shifting comb filter notches)
+SinOsc lfo1 => blackhole;
+0.2 => lfo1.freq;   // LFO for the first comb filter
+SinOsc lfo2 => blackhole;
+0.15 => lfo2.freq;  // LFO for the second comb filter
+
+// Main modulation loop: update delay times every 20 ms
+while (true) {
+    // Map lfo1's output (-1..1) to a delay time between 15ms and 25ms for dly1
+    ( (lfo1.last() + 1) / 2 ) * 10::ms + 15::ms => dly1.delay;
+    
+    // Map lfo2's output (-1..1) similarly for dly2
+    ( (lfo2.last() + 1) / 2 ) * 10::ms + 15::ms => dly2.delay;
+    
+    20::ms => now;
+}
