@@ -1,0 +1,277 @@
+#include <GLFW/glfw3.h>
+#include <jack/jack.h>
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <atomic>
+#include <mutex>
+#include <cstdlib>  // for rand()
+
+// Constants for lane dimensions and audio rate
+static constexpr float LANE_HEIGHT = 60.0f;   // Height of the DAW lane
+static constexpr float LANE_DEPTH = 18.0f;    // Depth for 3D effect
+static constexpr size_t SAMPLE_RATE = 44100;  // Samples per second
+
+// Stepped gradient settings:
+// We use 4 base colors: redish, orange, yellow, green.
+// 23 steps per transition => TOTAL_STEPS = 23 * (4 - 1) = 69.
+static constexpr int STEPS_PER_COLOR = 23;
+static constexpr int NUM_BASE_COLORS = 4;
+static constexpr int TOTAL_STEPS = STEPS_PER_COLOR * (NUM_BASE_COLORS - 1);
+
+// Base colors in [0,1]: redish, orange, yellow, green.
+const float BASE_COLORS[NUM_BASE_COLORS][3] = {
+    {1.0f, 0.2f, 0.3f},  // Redish
+    {1.0f, 0.6f, 0.2f},  // Orange
+    {1.0f, 1.0f, 0.2f},  // Yellow
+    {0.2f, 1.0f, 0.2f}   // Green
+};
+
+// Global state for recording
+std::atomic<bool> isRecording{ false };  // Toggle with R
+std::mutex dataMutex;
+
+// Audio data (we no longer need modulation parameters for this static version)
+std::vector<float> audioData;
+
+// JACK globals
+jack_client_t* jackClient = nullptr;
+jack_port_t* inputPort = nullptr;
+
+//-----------------------------------------------------------------------------
+
+// JACK process callback: Append incoming audio.
+int processCallback(jack_nframes_t nframes, void* /*arg*/) {
+    auto* in = (jack_default_audio_sample_t*)jack_port_get_buffer(inputPort, nframes);
+    if (isRecording) {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        audioData.insert(audioData.end(), in, in + nframes);
+    }
+    return 0;
+}
+
+//-----------------------------------------------------------------------------
+
+// Maps a sample's amplitude ([-1,1]) to one of 69 stepped colors on our gradient.
+inline void amplitudeToSteppedColor(float amplitude, float& r, float& g, float& b) {
+    // Normalize amplitude from [-1,1] to [0,1]
+    float norm = (amplitude + 1.0f) * 0.5f;
+    if (norm < 0.f) norm = 0.f;
+    if (norm > 1.f) norm = 1.f;
+    // Map normalized value to a stepped index in [0, TOTAL_STEPS]
+    float colorIndex = norm * TOTAL_STEPS;
+    // Determine which segment (base color pair) we're in.
+    float stepIndex = colorIndex / float(STEPS_PER_COLOR);
+    int colorSegment = int(stepIndex);
+    if (colorSegment >= NUM_BASE_COLORS - 1) {
+        colorSegment = NUM_BASE_COLORS - 2;
+        stepIndex = float(NUM_BASE_COLORS - 1);  // so that t becomes 1.0
+    }
+    float t = stepIndex - float(colorSegment);  // fractional part
+    // Apply smoothstep for a smoother transition.
+    t = t * t * (3.0f - 2.0f * t);
+    // Interpolate between the two base colors.
+    r = BASE_COLORS[colorSegment][0] + t * (BASE_COLORS[colorSegment + 1][0] - BASE_COLORS[colorSegment][0]);
+    g = BASE_COLORS[colorSegment][1] + t * (BASE_COLORS[colorSegment + 1][1] - BASE_COLORS[colorSegment][1]);
+    b = BASE_COLORS[colorSegment][2] + t * (BASE_COLORS[colorSegment + 1][2] - BASE_COLORS[colorSegment][2]);
+}
+
+//-----------------------------------------------------------------------------
+
+// Draw the skeuomorphic DAW lane with the static waveform overlay.
+// Each sample's color is determined by its amplitude via our stepped mapping.
+void drawSkeuomorphicLane(float windowWidth, float windowHeight) {
+    float x = 0.f;
+    float y = (windowHeight - LANE_HEIGHT) * 0.5f;
+    float w = windowWidth;
+    float h = LANE_HEIGHT;
+    float d = LANE_DEPTH; // Depth for 3D effect
+
+    // Define face colors for the lane.
+    float topR = 0.93f, topG = 0.93f, topB = 0.88f; // Top face.
+    float frontR = topR + 0.07f, frontG = topG + 0.07f, frontB = topB + 0.07f; // Front face.
+    float sideR = topR - 0.05f, sideG = topG - 0.05f, sideB = topB - 0.05f;       // Right side face.
+
+    // Draw top face.
+    glColor3f(topR, topG, topB);
+    glBegin(GL_QUADS);
+    glVertex3f(x, y, 0);
+    glVertex3f(x + w, y, 0);
+    glVertex3f(x + w, y + h, 0);
+    glVertex3f(x, y + h, 0);
+    glEnd();
+
+    // Draw front face (beveled edge).
+    glColor3f(frontR, frontG, frontB);
+    glBegin(GL_QUADS);
+    glVertex3f(x, y, 0);
+    glVertex3f(x + w, y, 0);
+    glVertex3f(x + w - d, y - d, -d);
+    glVertex3f(x - d, y - d, -d);
+    glEnd();
+
+    // Draw right side face.
+    glColor3f(sideR, sideG, sideB);
+    glBegin(GL_QUADS);
+    glVertex3f(x + w, y, 0);
+    glVertex3f(x + w, y + h, 0);
+    glVertex3f(x + w - d, y + h - d, -d);
+    glVertex3f(x + w - d, y - d, -d);
+    glEnd();
+
+    // Overlay the static waveform on the top face.
+    std::vector<float> localAudio;
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        localAudio = audioData;
+    }
+    size_t size = localAudio.size();
+    if (size < 2) return;
+    float scaleX = w / static_cast<float>(size - 1);
+    float waveH = h * 0.8f;
+    float offsetY = (h - waveH) * 0.5f;
+
+    glBegin(GL_LINE_STRIP);
+    for (size_t i = 0; i < size; i++) {
+        float base_r, base_g, base_b;
+        amplitudeToSteppedColor(localAudio[i], base_r, base_g, base_b);
+        glColor3f(base_r, base_g, base_b);
+
+        float norm = (localAudio[i] + 1.f) * 0.5f;  // map [-1,1] -> [0,1]
+        float xx = x + static_cast<float>(i) * scaleX;
+        float yy = y + offsetY + norm * waveH;
+        glVertex3f(xx, yy, 0.5f);  // Draw above top face.
+    }
+    glEnd();
+}
+
+//-----------------------------------------------------------------------------
+
+// Draw the burning indicator: a fixed orange circle in the top center.
+void drawBurningIndicator(int windowWidth) {
+    float radius = 20.f;
+    float cx = windowWidth * 0.5f;
+    float cy = 50.f; // 50 pixels from the top.
+    glColor3f(1.f, 0.65f, 0.f); // Orange.
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(cx, cy);
+    const int segments = 30;
+    for (int i = 0; i <= segments; i++) {
+        float angle = 2.f * 3.14159265359f * i / segments;
+        float dx = cosf(angle) * radius;
+        float dy = sinf(angle) * radius;
+        glVertex2f(cx + dx, cy + dy);
+    }
+    glEnd();
+}
+
+//-----------------------------------------------------------------------------
+
+// GLFW framebuffer resize callback.
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, width, height, 0, -100, 100);
+    glMatrixMode(GL_MODELVIEW);
+}
+
+//-----------------------------------------------------------------------------
+
+// GLFW key callback: R toggles recording (clearing previous waveform); ESC quits.
+void key_callback(GLFWwindow* window, int key, int, int action, int) {
+    if (key == GLFW_KEY_R && action == GLFW_PRESS) {
+        isRecording = !isRecording;
+        if (!isRecording) {
+            std::cout << "[Recording] Stopped.\n";
+        }
+        else {
+            std::cout << "[Recording] Started. Clearing previous waveform...\n";
+            std::lock_guard<std::mutex> lock(dataMutex);
+            audioData.clear();
+        }
+    }
+    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+// Main function.
+int main() {
+    if (!glfwInit())
+        return -1;
+
+    GLFWmonitor* primary = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = glfwGetVideoMode(primary);
+    glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+    glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+    glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+    glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+
+    GLFWwindow* window = glfwCreateWindow(mode->width, mode->height,
+        "Skeuomorphic DAW Lane (Static Stepped Colors)",
+        primary, nullptr);
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetKeyCallback(window, key_callback);
+    int w, h;
+    glfwGetWindowSize(window, &w, &h);
+    framebuffer_size_callback(window, w, h);
+
+    // JACK initialization.
+    jackClient = jack_client_open("SkeuomorphicDAW", JackNullOption, nullptr);
+    if (!jackClient) {
+        std::cerr << "JACK server not running?\n";
+        glfwTerminate();
+        return -1;
+    }
+    jack_set_process_callback(jackClient, processCallback, nullptr);
+
+    inputPort = jack_port_register(jackClient, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+    if (!inputPort) {
+        std::cerr << "Could not register JACK input port.\n";
+        jack_client_close(jackClient);
+        glfwTerminate();
+        return -1;
+    }
+    if (jack_activate(jackClient)) {
+        std::cerr << "Cannot activate JACK client.\n";
+        jack_client_close(jackClient);
+        glfwTerminate();
+        return -1;
+    }
+    const char** ports = jack_get_ports(jackClient, nullptr, JACK_DEFAULT_AUDIO_TYPE,
+        JackPortIsPhysical | JackPortIsOutput);
+    if (ports) {
+        if (jack_connect(jackClient, ports[0], jack_port_name(inputPort))) {
+            std::cerr << "Cannot connect input port.\n";
+        }
+        jack_free(ports);
+    }
+
+    // Main render loop.
+    while (!glfwWindowShouldClose(window)) {
+        glClearColor(0.f, 0.5f, 0.5f, 1.f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glfwGetWindowSize(window, &w, &h);
+        drawSkeuomorphicLane((float)w, (float)h);
+        drawBurningIndicator(w);
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // Cleanup.
+    jack_deactivate(jackClient);
+    jack_client_close(jackClient);
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return 0;
+}
