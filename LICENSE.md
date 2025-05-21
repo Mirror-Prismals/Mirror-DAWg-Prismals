@@ -3,7 +3,7 @@
 **Smiling License**
 Version 1.0 (2025)
 
-Copyright (c) 2025 \[Lochinvar Camporal]
+Copyright (c) 2025 Lochinvar Camporal
 
 ---
 
