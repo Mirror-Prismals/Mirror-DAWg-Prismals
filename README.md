@@ -8,7 +8,7 @@ over 400 standalone “apps “,
 4 different "digital audio workstations", 
 and 1 "alternate reality game."
 
-If you have never run python code or C++ code or if you don’t have the jack audio server  (qjackctl) or if you are unfamiliar with installing Python packages... learn how to do that first and then come back here. It would also be good to install a virtual audio cable like VB cable.
+> If you have never run python code or C++ code or if you don’t have the jack audio server  (qjackctl) or if you are unfamiliar with installing Python packages... learn how to do that first and then come back here. It would also be good to install a virtual audio cable like VB cable.
 
 Mirror is the world’s first fully fledged, digital audio workstation  hybrid with a voxel game, today we are releasing mirror pre-Alpha, a collection of over 126,000 lines of code that you can use to make your own digital audio workstations, voxel games, art apps, and the like. The license is very permissive, allowing you to make educational and nonprofit closed source derivatives without worrying about other people making similar derivatives and squashing all of your fun with a patent claim. We hope to bring upon a new era of digital audio workstations that you actually own. We hope everyone starts to share and develop their own mirrors.
 
