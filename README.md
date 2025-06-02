@@ -1,5 +1,5 @@
 # Mirror-DAWg-Prismals
-
+![](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__mirror_thumbnail.png)
 #### I made you a DAW! it's not very good, sorry!...
 ---
 this repository contains:
