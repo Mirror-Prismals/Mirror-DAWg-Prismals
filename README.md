@@ -21,3 +21,4 @@ The license is very permissive, allowing you to make educational and nonprofit c
 
 ![A peaceful night in The Expanse...](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__prismals_game.gif)
 ![It's Alive!](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__dawguxz.gif)
+![Afraid of shapes? This will terrify you.](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__hydrogel_game.gif)
