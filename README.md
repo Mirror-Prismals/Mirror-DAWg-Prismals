@@ -1,8 +1,7 @@
 # Mirror DAW[g] (Prismals!)
 ![](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__mirror_thumbnail.png)
 #### I made you a DAW! it's not very good, sorry!...
----
-<iframe width="560" height="315" src="https://www.youtube.com/embed/8HlmQ209ydM?si=rLQU2EVYJXy94C9g" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+![](https://www.youtube.com/watch?v=8HlmQ209ydM)
 ---
 this repository contains:
 over 400 standalone “apps “, 
