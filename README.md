@@ -1,5 +1,5 @@
 # Mirror DAW[g] (Prismals!)
-
+> Click the image below to watch the trailer!
 [![Mirror DAW[g] (Prismals!) - New Digital Audio Workstation Voxel Game | Pre-Alpha Launch Trailer](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__mirror_thumbnail.png)](https://www.youtube.com/watch?v=8HlmQ209ydM)
 #### I made you a DAW! it's not very good, sorry!...
 
