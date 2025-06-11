@@ -22,7 +22,12 @@ The license is very permissive, allowing you to make educational and nonprofit c
 
 ###### if you would like to distribute commercialzed forks- for selling some form of the source code that you modified with your own proprietary modifications, you can purchase non-exclusive lifetime license to distribute for $19 under the terms of the smiling license. Please email midabanker@proton.me and I will correspond. you are otherwise free to fork and share and redistribute this code for non-commercial, educational or personally private use, or sharing with friends and online communities, in source or binary form.
 > Mirror-DAWg-Prismals/src/Mirror/Voxel Games/prismals_game.cpp
-
+> This is the main voxel game you see in the promotional material. It has a lot of cool features.
+> Its just one file and 2700 lines long...
+> It has a day night cycle that is syced to irl! so 24hr day/night cycles.
+> It has completely procedurally generated textures!
+> It has a map, minimap, swimming, prone controls, and a paraglider!
+> It has a deterministic world see with a bunch of different biomes including the jungle, north pole, mountains, plains, and forest that you spawn in.
 ![A peaceful night in The Expanse...](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__prismals_game.gif)
 > A peaceful night in The Expanse...
 ![It's Alive!](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__dawguxz.gif)
