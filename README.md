@@ -28,11 +28,13 @@ The license is very permissive, allowing you to make educational and nonprofit c
 > Its just one file and 2700 lines long...
 
 > It has a day night cycle that is syced to irl! so 24hr day/night cycles.
+
 > It has completely procedurally generated textures!
 
 > It has a map, minimap, swimming, prone controls, and a paraglider!
 
-> It has a deterministic world see with a bunch of different biomes including the jungle, north pole, mountains, plains, and forest that you spawn in.
+> It has a deterministic world seed with a bunch of different biomes including the jungle, north pole, mountains, plains, and forest that you spawn in.
+
 ![A peaceful night in The Expanse...](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__prismals_game.gif)
 > A peaceful night in The Expanse...
 ![It's Alive!](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__dawguxz.gif)
