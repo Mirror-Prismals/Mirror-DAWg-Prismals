@@ -43,7 +43,8 @@ The license is very permissive, allowing you to make educational and nonprofit c
 ![It's Alive!](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__dawguxz.gif)
 > It's Alive!
 
-
+> Mirror-DAWg-Prismals/src/colorspace/Hydrogel Game
+/main.py
 ![Afraid of shapes? This will terrify you.](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__hydrogel_game.gif)
 > Afraid of shapes? This will terrify you.
 
