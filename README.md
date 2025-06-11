@@ -21,6 +21,7 @@ Today we are releasing mirror pre-Alpha, a collection of over 126,000 lines of c
 The license is very permissive, allowing you to make educational and nonprofit closed source derivatives as well as closed source for-profit forks (if you pay a small one time fee) without worrying about other people making similar derivatives and squashing all of your fun with an unjust legal claim. We hope to bring upon a new era of digital audio workstations that you actually own. We hope everyone starts to share and develop their own mirrors.
 
 ###### if you would like to distribute commercialzed forks- for selling some form of the source code that you modified with your own proprietary modifications, you can purchase non-exclusive lifetime license to distribute for $19 under the terms of the smiling license. Please email midabanker@proton.me and I will correspond. you are otherwise free to fork and share and redistribute this code for non-commercial, educational or personally private use, or sharing with friends and online communities, in source or binary form.
+> Mirror-DAWg-Prismals/src/Mirror/Voxel Games/prismals_game.cpp
 
 ![A peaceful night in The Expanse...](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__prismals_game.gif)
 > A peaceful night in The Expanse...
