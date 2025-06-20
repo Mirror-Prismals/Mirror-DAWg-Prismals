@@ -55,4 +55,5 @@ The license is very permissive, allowing you to make educational and nonprofit c
 > Rainbow Noise, Anyone?
 
 > src/colorspace/p rank/True Color/Mira-Clone
+
 > This repo contains a new type of audio visualizer. Its called a mira visualizer. 
