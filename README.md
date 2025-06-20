@@ -57,3 +57,5 @@ The license is very permissive, allowing you to make educational and nonprofit c
 > src/colorspace/p rank/True Color/Mira-Clone
 
 > This repo contains a new type of audio visualizer. Its called a mira visualizer. 
+
+> other than the novel way the visualizer is generated, the mira visualizer features "Virtual Gain", "Virtual Reverb" and more
