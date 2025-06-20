@@ -53,3 +53,6 @@ The license is very permissive, allowing you to make educational and nonprofit c
 ![Rainbow Noise?](https://github.com/Mirror-Prismals/Mirror-DAWg-Prismals/blob/main/readme_assets/readme_assets__openBinaryWATERFALL_v2.gif)
 
 > Rainbow Noise, Anyone?
+
+> src/colorspace/p rank/True Color/Mira-Clone
+> This repo contains a new type of audio visualizer. Its called a mira visualizer. 
