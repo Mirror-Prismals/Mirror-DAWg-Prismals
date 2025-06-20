@@ -59,3 +59,8 @@ The license is very permissive, allowing you to make educational and nonprofit c
 > This repo contains a new type of audio visualizer. Its called a mira visualizer. 
 
 > other than the novel way the visualizer is generated, the mira visualizer features "Virtual Gain", "Virtual Reverb" and more
+
+> Mirror-DAWg-Prismals/src/Mirror/c++
+/Salamander/
+
+> Salamander is a opengl and c++ "cookbook" for retro-futuristic UX/UI design. Theres quite a few scripts here, mostly focusing on audio-visual and UI/UX prototypes.
