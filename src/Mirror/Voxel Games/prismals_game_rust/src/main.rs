@@ -10,8 +10,58 @@ use vulkano::device::{Device, DeviceCreateInfo, QueueCreateInfo};
 use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo};
 use vulkano::image::ImageUsage;
 use vulkano::sync::GpuFuture;
-use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
+use winit::{event::{Event, WindowEvent, KeyboardInput, VirtualKeyCode, ElementState},
+    event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
+use nalgebra::Vector3;
+use std::time::Instant;
 use std::sync::Arc;
+
+const GRAVITY: f32 = 9.8;
+const SLOPE_ANGLE: f32 = 30.0_f32.to_radians();
+
+struct InputState {
+    forward: bool,
+}
+
+impl Default for InputState {
+    fn default() -> Self {
+        Self { forward: false }
+    }
+}
+
+struct Player {
+    position: Vector3<f32>,
+    velocity: Vector3<f32>,
+}
+
+impl Player {
+    fn new() -> Self {
+        Self {
+            position: Vector3::new(0.0, 10.0, 0.0),
+            velocity: Vector3::zeros(),
+        }
+    }
+
+    fn update(&mut self, dt: f32, input: &InputState) {
+        let slope_height = 10.0 - self.position.x * SLOPE_ANGLE.tan();
+        if self.position.y > slope_height {
+            self.velocity.y -= GRAVITY * dt;
+        } else if self.velocity.y < 0.0 {
+            self.position.y = slope_height;
+            self.velocity.y = 0.0;
+        }
+
+        if self.position.y <= slope_height {
+            // Sliding acceleration along the slope
+            self.velocity.x += GRAVITY * SLOPE_ANGLE.sin() * dt;
+            if input.forward {
+                self.velocity.x += 5.0 * dt;
+            }
+        }
+
+        self.position += self.velocity * dt;
+    }
+}
 
 fn main() {
     // Create winit event loop and window
@@ -55,16 +105,34 @@ fn main() {
         }
     ).expect("failed to create swapchain");
 
+    let mut player = Player::new();
+    let mut input = InputState::default();
+    let mut last_frame = Instant::now();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                *control_flow = ControlFlow::Exit;
-            }
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::KeyboardInput { input: KeyboardInput { state, virtual_keycode: Some(key), .. }, .. } => {
+                    match (key, state) {
+                        (VirtualKeyCode::W, ElementState::Pressed) => input.forward = true,
+                        (VirtualKeyCode::W, ElementState::Released) => input.forward = false,
+                        _ => {}
+                    }
+                }
+                _ => {}
+            },
             Event::MainEventsCleared => {
+                let now = Instant::now();
+                let dt = now.duration_since(last_frame).as_secs_f32();
+                last_frame = now;
+
+                player.update(dt, &input);
+
                 // Rendering code would go here. For now we just idle.
             }
-            _ => ()
+            _ => {}
         }
     });
 }
