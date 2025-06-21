@@ -1,0 +1,10 @@
+[package]
+name = "prismals_game_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winit = "0.28"
+vulkano = { version = "0.33", default-features = false, features = ["macros", "vulkan10"] }
+
+[workspace]
