@@ -10,8 +10,7 @@ over 400 standalone “apps “,
 3 different "voxel games",
 4 different "digital audio workstations",
 and 1 "alternate reality game."
-You will also find a growing collection of small C/C++ examples such as a
-disk-friendly B-Tree implementation located in `src/Mirror/c/b_tree.c`.
+
 
 > If you have never run python code or C++ code or if you don’t have the jack audio server  (qjackctl) or if you are unfamiliar with installing Python packages... learn how to do that first and then come back here. It would also be good to install a virtual audio cable like VB cable.
 
